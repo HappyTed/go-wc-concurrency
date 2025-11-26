@@ -89,7 +89,8 @@ func (wp *WoorkerPool) CreateWorkers() error {
 func (wp *WoorkerPool) Complete() error {
 	go func() {
 		wp.wg.Wait()
-		// close(wp.outputCh)
+
+		close(wp.outputCh)
 	}()
 
 	return nil

@@ -9,67 +9,100 @@ import (
 	"go-wc-concurrency/pkg"
 	"log"
 	"os"
+	"strings"
 	"sync"
 )
 
-func Printing(out []*entity.OutputData) {
-	// var sb strings.Builder
+func printing(flags config.OptionFlag, out []*entity.OutputData) {
+	var header strings.Builder
+	var sep strings.Builder
+
+	if flags&config.LINES != 0 {
+		header.WriteString(fmt.Sprintf("%-6s", "lines"))
+		sep.WriteString(strings.Repeat("-", len("lines")+1))
+	}
+	if flags&config.WORDS != 0 {
+		header.WriteString(fmt.Sprintf("%-6s", "words"))
+		sep.WriteString(strings.Repeat("-", len("words")+1))
+	}
+	if flags&config.BYTES != 0 {
+		header.WriteString(fmt.Sprintf("%-6s", "bytes"))
+		sep.WriteString(strings.Repeat("-", len("bytes")+1))
+	}
+
+	fmt.Println(header.String())
+	fmt.Println(sep.String())
+
+	var sb strings.Builder
+	var fullResult = entity.OutputData{}
 	for _, r := range out {
-		fmt.Println(*r)
+
+		fullResult.Lines += r.Lines
+		fullResult.Words += r.Words
+		fullResult.Bytes += r.Bytes
+
+		if flags&config.LINES != 0 {
+			sb.WriteString(fmt.Sprintf("%5d", r.Lines))
+		}
+		if flags&config.WORDS != 0 {
+			sb.WriteString(fmt.Sprintf("%6d", r.Words))
+		}
+		if flags&config.BYTES != 0 {
+			sb.WriteString(fmt.Sprintf("%6d", r.Bytes))
+		}
+		sb.WriteString(fmt.Sprintf(" %s", r.Name))
+
+		fmt.Println(sb.String())
+		sb.Reset()
+	}
+
+	if len(out) > 1 {
+		if flags&config.LINES != 0 {
+			sb.WriteString(fmt.Sprintf("%5d", fullResult.Lines))
+		}
+		if flags&config.WORDS != 0 {
+			sb.WriteString(fmt.Sprintf("%6d", fullResult.Words))
+		}
+		if flags&config.BYTES != 0 {
+			sb.WriteString(fmt.Sprintf("%6d", fullResult.Bytes))
+		}
+		fmt.Println()
+		sb.WriteString(fmt.Sprintf(" %s", "total"))
+		fmt.Println(sb.String())
 	}
 }
 
 func main() {
 
-	var wg sync.WaitGroup
-	var jobsCh = make(chan logic.IJob)
-	var outputCh = make(chan *entity.OutputData)
-	var closeFilesCh = make(chan func() error)
-
 	cfg := config.ReadConfig()
 
-	if len(cfg.FilesPath) > 0 {
-		wg.Add(1)
-		go func() {
-			defer close(jobsCh)
-			defer close(closeFilesCh)
-			defer wg.Done()
+	var (
+		wg       sync.WaitGroup
+		results  []*entity.OutputData
+		jobsCh   = make(chan logic.IJob, cfg.NumWorkers)
+		outputCh = make(chan *entity.OutputData, cfg.NumWorkers)
+	)
 
-			for _, path := range flag.Args() {
-				file, err := os.Open(path)
-				if err != nil {
-					log.Fatal("Failed to open file:", path)
-				}
-				closeFilesCh <- file.Close
-
-				job := logic.NewJob(file)
-				jobsCh <- job
-			}
-		}()
-	} else { // пытаемся считать из stdin (передача через pipe)
-		wg.Add(1)
-		go func() {
-			job := logic.NewJob(os.Stdin)
-			jobsCh <- job
-
-			close(jobsCh)
-			close(closeFilesCh)
-
-			wg.Done()
-		}()
-	}
-
-	workerFunc := func(wg *sync.WaitGroup, jobs chan logic.IJob, out chan *entity.OutputData) {
+	// Создаём функцию-обработчик задач
+	workerFunc := func(wg *sync.WaitGroup, jobsCh chan logic.IJob, outCh chan *entity.OutputData) {
 		defer wg.Done()
 
-		for job := range jobs {
+		for job := range jobsCh {
 			result, _ := job.Calculate()
-			out <- result
+			outCh <- result
 		}
-
-		// close(out)
 	}
 
+	// Создаём горутины на чтение результатов выполнения задач
+	wg.Add(1)
+	go func() {
+		for out := range outputCh {
+			results = append(results, out)
+		}
+		wg.Done()
+	}()
+
+	// Заводим пул воркеров для обработки задач
 	wp, err := pkg.MakePool(
 		pkg.WithWorkersCount(cfg.NumWorkers),
 		pkg.WithJobsChannel(jobsCh),
@@ -80,34 +113,47 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var outs []*entity.OutputData
-	wg.Add(1)
-	go func() {
-		for out := range outputCh {
-			outs = append(outs, out)
-		}
-		wg.Done()
-	}()
-
 	err = wp.CreateWorkers()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Отправляем задачи на обработку
+	if len(cfg.Files) > 0 { // если это файлы, заводи jobs на их чтение
+		wg.Add(1)
+		go func() {
+			defer close(jobsCh)
+			defer wg.Done()
+
+			for _, path := range flag.Args() {
+				file, err := os.Open(path)
+				if err != nil {
+					log.Fatal("Failed to open file:", path)
+				}
+
+				job := logic.NewJob(file.Name(), file, file.Close)
+				jobsCh <- job
+			}
+		}()
+	} else { // иначе пытаемся считать из stdin (или передача через linux pipe)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(jobsCh)
+
+			job := logic.NewJob("", os.Stdin, func() error { return nil })
+			jobsCh <- job
+		}()
+	}
+
+	// ждём, когда все задачи будут выполнены
 	err = wp.Complete()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	wg.Add(1)
-	go func() {
-		for close := range closeFilesCh {
-			close()
-		}
-		wg.Done()
-	}()
-
+	// ждём завершения обработки результатов
 	wg.Wait()
 
-	Printing(outs)
+	printing(cfg.Options, results)
 }

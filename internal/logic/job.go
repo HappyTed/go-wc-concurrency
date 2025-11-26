@@ -11,17 +11,23 @@ type IJob interface {
 	Calculate() (*entity.OutputData, error)
 }
 
+type CloseReader func() error
+
 type Job struct {
-	r io.Reader
+	name  string
+	r     io.Reader
+	close CloseReader
 }
 
-func NewJob(r io.Reader) *Job {
-	return &Job{r: r}
+func NewJob(name string, r io.Reader, close CloseReader) *Job {
+	return &Job{name: name, r: r, close: close}
 }
 
 // Scan io.Reader line by line and calculate: lines, words and bytes
 func (j *Job) Calculate() (*entity.OutputData, error) {
-	res := &entity.OutputData{}
+	defer j.close() // если это файл, закрываем его
+
+	res := &entity.OutputData{Name: j.name}
 
 	scanner := bufio.NewScanner(j.r)
 	scanner.Split(bufio.ScanLines)
