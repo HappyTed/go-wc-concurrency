@@ -12,27 +12,24 @@ bytes хз`)
 
 func BenchmarkCount_ThreeLoops(b *testing.B) {
 
-	r := bytes.NewReader(testData)
-
 	for i := 0; i < b.N; i++ {
+		r := bytes.NewReader(testData)
 		ThreeLoops(r)
 	}
 }
 
 func BenchmarkCount_ThreeGorutines(b *testing.B) {
 
-	r := bytes.NewReader(testData)
-
 	for i := 0; i < b.N; i++ {
+		r := bytes.NewReader(testData)
 		ThreeGorutines(r)
 	}
 }
 
 func BenchmarkCount_LineByLine(b *testing.B) {
 
-	r := bytes.NewReader(testData)
-
 	for i := 0; i < b.N; i++ {
+		r := bytes.NewReader(testData)
 		LineByLine(r)
 	}
 }

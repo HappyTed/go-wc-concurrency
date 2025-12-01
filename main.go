@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"go-wc-concurrency/internal/config"
 	"go-wc-concurrency/internal/entity"
@@ -88,7 +87,11 @@ func main() {
 		defer wg.Done()
 
 		for job := range jobsCh {
-			result, _ := job.Calculate()
+			result, err := job.Calculate(cfg.Options)
+			if err != nil {
+				fmt.Println(result.Name, "counting error:", err)
+				continue
+			}
 			outCh <- result
 		}
 	}
@@ -125,13 +128,31 @@ func main() {
 			defer close(jobsCh)
 			defer wg.Done()
 
-			for _, path := range flag.Args() {
+			for _, path := range cfg.Files {
 				file, err := os.Open(path)
 				if err != nil {
-					log.Fatal("Failed to open file:", path)
+					fmt.Println("error: file: No such file or directory`:", path)
+					continue
 				}
 
-				job := logic.NewJob(file.Name(), file, file.Close)
+				info, err := file.Stat()
+				if err != nil {
+					fmt.Println("error: failed get file info:", err)
+					continue
+				}
+
+				job, err := logic.NewJob(
+					info.Name(),
+					file,
+					logic.WithFlags(cfg.Options),
+					logic.WithCloseFunc(file.Close),
+					logic.WithBytesCount(uint64(info.Size())),
+				)
+				if err != nil {
+					fmt.Println("failed read file:", err)
+					continue
+				}
+
 				jobsCh <- job
 			}
 		}()
@@ -141,16 +162,22 @@ func main() {
 			defer wg.Done()
 			defer close(jobsCh)
 
-			job := logic.NewJob("", os.Stdin, func() error { return nil })
+			job, err := logic.NewJob(
+				"",
+				os.Stdin,
+				logic.WithFlags(cfg.Options),
+			)
+			if err != nil {
+				fmt.Println("failed read file:", err)
+				return
+			}
+
 			jobsCh <- job
 		}()
 	}
 
 	// ждём, когда все задачи будут выполнены
-	err = wp.Complete()
-	if err != nil {
-		log.Fatal(err)
-	}
+	wp.Complete()
 
 	// ждём завершения обработки результатов
 	wg.Wait()

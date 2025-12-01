@@ -9,7 +9,7 @@ import (
 
 type WorkerFunc func(*sync.WaitGroup, chan logic.IJob, chan *entity.OutputData)
 
-type WoorkerPool struct {
+type WorkerPool struct {
 	wg         *sync.WaitGroup
 	numWorkers uint8
 	jobsCh     chan logic.IJob
@@ -17,10 +17,10 @@ type WoorkerPool struct {
 	workerFunc WorkerFunc
 }
 
-type Option func(*WoorkerPool) error
+type Option func(*WorkerPool) error
 
 func WithWaitGroup(wg *sync.WaitGroup) Option {
-	return func(wp *WoorkerPool) error {
+	return func(wp *WorkerPool) error {
 		if wg == nil {
 			return errors.New("WaitGroup can't be nil pointer")
 		}
@@ -30,14 +30,14 @@ func WithWaitGroup(wg *sync.WaitGroup) Option {
 }
 
 func WithWorkersCount(c uint8) Option {
-	return func(wp *WoorkerPool) error {
+	return func(wp *WorkerPool) error {
 		wp.numWorkers = c
 		return nil
 	}
 }
 
 func WithJobsChannel(j chan logic.IJob) Option {
-	return func(wp *WoorkerPool) error {
+	return func(wp *WorkerPool) error {
 		if j == nil {
 			return errors.New("Jobs channel can't be nil chan")
 		}
@@ -47,7 +47,7 @@ func WithJobsChannel(j chan logic.IJob) Option {
 }
 
 func WithOutputChannel(op chan *entity.OutputData) Option {
-	return func(wp *WoorkerPool) error {
+	return func(wp *WorkerPool) error {
 		if op == nil {
 			return errors.New("Result's channel can't be nil chan")
 		}
@@ -57,7 +57,7 @@ func WithOutputChannel(op chan *entity.OutputData) Option {
 }
 
 func WithWorkerFunc(f WorkerFunc) Option {
-	return func(wp *WoorkerPool) error {
+	return func(wp *WorkerPool) error {
 		if f == nil {
 			return errors.New("Worker Func can't be nil pointer")
 		}
@@ -66,8 +66,8 @@ func WithWorkerFunc(f WorkerFunc) Option {
 	}
 }
 
-func MakePool(opts ...Option) (*WoorkerPool, error) {
-	wp := &WoorkerPool{wg: &sync.WaitGroup{}}
+func MakePool(opts ...Option) (*WorkerPool, error) {
+	wp := &WorkerPool{wg: &sync.WaitGroup{}}
 	for _, opt := range opts {
 		if err := opt(wp); err != nil {
 			return nil, err
@@ -76,7 +76,7 @@ func MakePool(opts ...Option) (*WoorkerPool, error) {
 	return wp, nil
 }
 
-func (wp *WoorkerPool) CreateWorkers() error {
+func (wp *WorkerPool) CreateWorkers() error {
 
 	for i := 0; i < int(wp.numWorkers); i++ {
 		wp.wg.Add(1)
@@ -86,12 +86,7 @@ func (wp *WoorkerPool) CreateWorkers() error {
 	return nil
 }
 
-func (wp *WoorkerPool) Complete() error {
-	go func() {
-		wp.wg.Wait()
-
-		close(wp.outputCh)
-	}()
-
-	return nil
+func (wp *WorkerPool) Complete() {
+	wp.wg.Wait()
+	close(wp.outputCh)
 }

@@ -2,7 +2,7 @@ package entity
 
 type OutputData struct {
 	Name  string
-	Lines uint
-	Words uint
-	Bytes uint
+	Lines uint64
+	Words uint64
+	Bytes uint64
 }
