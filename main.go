@@ -87,7 +87,7 @@ func main() {
 		defer wg.Done()
 
 		for job := range jobsCh {
-			result, err := job.Calculate(cfg.Options)
+			result, err := job.Calculate()
 			if err != nil {
 				fmt.Println(result.Name, "counting error:", err)
 				continue
@@ -142,8 +142,8 @@ func main() {
 				}
 
 				job, err := logic.NewJob(
-					info.Name(),
 					file,
+					logic.WithName(file.Name()),
 					logic.WithFlags(cfg.Options),
 					logic.WithCloseFunc(file.Close),
 					logic.WithBytesCount(uint64(info.Size())),
@@ -163,7 +163,6 @@ func main() {
 			defer close(jobsCh)
 
 			job, err := logic.NewJob(
-				"",
 				os.Stdin,
 				logic.WithFlags(cfg.Options),
 			)

@@ -15,7 +15,6 @@ type IJob interface {
 type CloseReader func() error
 
 type Job struct {
-	name      string
 	br        *bufio.Reader
 	options   config.OptionFlag
 	closeFunc CloseReader
@@ -51,10 +50,19 @@ func WithCloseFunc(f CloseReader) Option {
 	}
 }
 
-func NewJob(name string, r io.Reader, options ...Option) (*Job, error) {
+func WithName(name string) Option {
+	return func(j *Job) error {
+		if j.result == nil {
+			return errors.New("entity.OutputData is nil")
+		}
+		j.result.Name = name
+		return nil
+	}
+}
+
+func NewJob(r io.Reader, options ...Option) (*Job, error) {
 
 	j := &Job{
-		name:      name,
 		br:        bufio.NewReader(r),
 		closeFunc: func() error { return nil },
 		options:   config.BYTES | config.LINES | config.WORDS,
@@ -104,17 +112,22 @@ func (j *Job) Calculate() (*entity.OutputData, error) {
 		chunk := buffer[0:n]
 		for _, b := range chunk {
 			switch b {
-			case '\n':
-				lines++
-			case ' ', '\t', '\r', '\f', '\v':
+			case ' ', '\t', '\n', '\r', '\f', '\v':
 				if isWord {
 					words++
 					isWord = false
+				}
+				if b == '\n' {
+					lines++
 				}
 			default:
 				isWord = true
 			}
 		}
+	}
+
+	if isWord {
+		words++
 	}
 
 	j.result.Bytes = bytes
