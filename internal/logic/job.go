@@ -8,6 +8,7 @@ import (
 	"io"
 )
 
+// REV: сишное название интерфейса. В го такой микро интерфейс назвали бы как нибудь Calculator
 type IJob interface {
 	Calculate() (*entity.OutputData, error)
 }
@@ -81,6 +82,7 @@ func NewJob(r io.Reader, options ...Option) (*Job, error) {
 func (j *Job) Calculate() (*entity.OutputData, error) {
 	defer j.closeFunc() // если это файл, закрываем его
 
+	// REV: проверку тоже в функцию и юнит тесты на нее
 	// если нужны только байты, их могли передать вначале (Если это файл, то количество байт заранее известно)
 	if j.options&config.BYTES != 0 &&
 		(j.options&config.LINES == 0 && j.options&config.WORDS == 0) &&
@@ -109,6 +111,7 @@ func (j *Job) Calculate() (*entity.OutputData, error) {
 
 		bytes += uint64(n)
 
+		// REV: n = len(buffer), можно сразу по нему и итерироваться
 		chunk := buffer[0:n]
 		for _, b := range chunk {
 			switch b {

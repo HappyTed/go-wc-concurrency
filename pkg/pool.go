@@ -79,7 +79,7 @@ func MakePool(opts ...Option) (*WorkerPool, error) {
 func (wp *WorkerPool) CreateWorkers() error {
 
 	for i := 0; i < int(wp.numWorkers); i++ {
-		wp.wg.Add(1)
+		wp.wg.Add(1) // REV: ну очень не прозрачная работа с wg
 		go wp.workerFunc(wp.wg, wp.jobsCh, wp.outputCh)
 	}
 

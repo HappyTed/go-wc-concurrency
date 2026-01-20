@@ -51,6 +51,7 @@ func printing(flags config.OptionFlag, out []*entity.OutputData) {
 		}
 		sb.WriteString(fmt.Sprintf(" %s", r.Name))
 
+		// REV: принты юзать такое, только логер
 		fmt.Println(sb.String())
 		sb.Reset()
 	}
@@ -84,6 +85,10 @@ func main() {
 
 	// Создаём функцию-обработчик задач
 	workerFunc := func(wg *sync.WaitGroup, jobsCh chan logic.IJob, outCh chan *entity.OutputData) {
+		// REV: wg лучше юзать не в самой workFunc, а перед тем где она вызывается,
+		// проще будет отслеживать закрыл или нет.
+		// А еще есть errgroup, ее тоже можно как авто закрывающуюся wg юзать.
+		// В го 1.25 появился метод wg.Go(), который сам будет закрывать wg
 		defer wg.Done()
 
 		for job := range jobsCh {
@@ -105,6 +110,9 @@ func main() {
 		wg.Done()
 	}()
 
+	// REV: With функции обычно используются, когда делаешь либу, которая будет использоваться
+	// как пакет, а так было бы достаточно и просто структуру сделать
+	//
 	// Заводим пул воркеров для обработки задач
 	wp, err := pkg.MakePool(
 		pkg.WithWorkersCount(cfg.NumWorkers),
@@ -118,12 +126,18 @@ func main() {
 
 	err = wp.CreateWorkers()
 	if err != nil {
+		// REV: log устаревший, норм пацаны юзают slog, там есть куча классных реализаций,
+		// я для дева такую использую "github.com/golang-cz/devslog"
 		log.Fatal(err)
 	}
-
+	// REV: этот ебейший if else лучше разбить на функции и вызывать их, легче будет читаться и тестить потом
+	//
 	// Отправляем задачи на обработку
 	if len(cfg.Files) > 0 { // если это файлы, заводи jobs на их чтение
 		wg.Add(1)
+
+		// REV: а зачем эта горутина? ты же все равно ждешь ее завершения сразу после
+		// было бы ок, если бы читал файлы в нескольких горутинах, а так все равно по очереди идешь
 		go func() {
 			defer close(jobsCh)
 			defer wg.Done()
@@ -131,6 +145,7 @@ func main() {
 			for _, path := range cfg.Files {
 				file, err := os.Open(path)
 				if err != nil {
+					// REV: логгер
 					fmt.Println("error: file: No such file or directory`:", path)
 					continue
 				}
@@ -141,6 +156,7 @@ func main() {
 					continue
 				}
 
+				// REV: тоже самое с with, но в целом ок
 				job, err := logic.NewJob(
 					file,
 					logic.WithName(file.Name()),

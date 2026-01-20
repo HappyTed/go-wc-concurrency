@@ -10,6 +10,7 @@ words 9
 lines 4
 bytes хз`)
 
+// REV: паникует panic: Split called after Scan
 func BenchmarkCount_ThreeLoops(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
@@ -18,6 +19,7 @@ func BenchmarkCount_ThreeLoops(b *testing.B) {
 	}
 }
 
+// REV: иногда паникует panic: runtime error: slice bounds out of range [78:39]
 func BenchmarkCount_ThreeGorutines(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
