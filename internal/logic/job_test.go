@@ -114,3 +114,6 @@ func TestMegaString(t *testing.T) {
 
 	assert.Equal(t, expected, real, "Actual counter values ​​do not match expected values")
 }
+
+// REV: я бы еще добавил кейс, когда у тебя строка больше размера буфера 1024
+// есть у меня сомнения что оно норм будет работать

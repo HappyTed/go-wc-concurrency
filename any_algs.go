@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+// REV: а что это? оно только в бенчах и используется
+
 var (
 	wordsCounter uint
 	linesCounter uint
