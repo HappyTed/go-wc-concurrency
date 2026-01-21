@@ -72,6 +72,10 @@ func printing(flags config.OptionFlag, out []*entity.OutputData) {
 	}
 }
 
+// REV: если уж начал правильно по папкам раскидывать, нужно вынести запуск в cmd/app-name/main.go
+// там только вызов инициализирующей функции.
+// А саму инициализирующую функцию в internal/application/app-name(или просто app, если сервис один)/app.go.
+// Тут инициализруешь конфиги, репозитории и все что вообще нужно
 func main() {
 
 	cfg := config.ReadConfig()
